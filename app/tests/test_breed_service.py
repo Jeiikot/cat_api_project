@@ -1,10 +1,10 @@
 # FastAPI
-from fastapi import HTTPException
+import httpx
+from fastapi import HTTPException, status
 
 import pytest
 from types import SimpleNamespace
 from unittest.mock import MagicMock
-
 
 # Models
 from app.models.common import PaginationParams
@@ -73,35 +73,70 @@ class TestBreedService:
         assert data.next is not None
         assert data.previous is None
 
-    async def test_get_breed_by_id(self, mock_breed_httpx_get):
-        mock_breed_httpx_get.return_value.json = MagicMock(
-            return_value={"id": "beng", "name": "Bengal"}
-        )
-        mock_breed_httpx_get.return_value.status_code = 200
+    async def test_get_breed_by_id(self, mock_breed_httpx_get, fake):
+        mock_data = self.generate_mock_breeds(fake, count=1)
+        mock_breed_httpx_get.return_value.json = MagicMock(return_value=mock_data[0])
+        mock_breed_httpx_get.return_value.status_code = status.HTTP_200_OK
         mock_breed_httpx_get.return_value.raise_for_status = MagicMock()
 
         data = await BreedService.get_breed_by_id("beng")
 
-        assert data["name"] == "Bengal"
-        assert data["id"] == "beng"
+        assert data["id"] == mock_data[0]["id"]
+        assert data["name"] == mock_data[0]["name"]
 
-    async def test_get_breed_not_found(self, mock_breed_httpx_get):
-        mock_breed_httpx_get.return_value.status_code = 404
+    async def test_get_breed_not_found(self, mock_breed_httpx_get, fake):
+        mock_breed_httpx_get.return_value.status_code = status.HTTP_404_NOT_FOUND
         mock_breed_httpx_get.return_value.raise_for_status = MagicMock()
 
         with pytest.raises(HTTPException) as exc:
-            await BreedService.get_breed_by_id("nope")
+            await BreedService.get_breed_by_id(fake.lexify(text="????"))
         assert exc.value.status_code == 404
 
+    async def test_get_breed_by_id_unexpected_error(self, mock_breed_httpx_get, fake):
+        mock_request = MagicMock()
+        mock_response = MagicMock(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    async def test_search_breeds(self, mock_breed_httpx_get):
-        mock_breed_httpx_get.return_value.json = MagicMock(
-            return_value=[{"id": "beng", "name": "Bengal"}]
+        mock_breed_httpx_get.return_value.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        mock_breed_httpx_get.return_value.raise_for_status = MagicMock(
+            side_effect=httpx.HTTPStatusError(
+                "Internal Server Error", request=mock_request, response=mock_response
+            )
         )
-        mock_breed_httpx_get.return_value.raise_for_status = MagicMock()
 
-        pag = PaginationParams(limit=10, page=0)
-        data = await BreedService.search_breeds("beng", pag, DummyRequest())
+        with pytest.raises(httpx.HTTPStatusError):
+            await BreedService.get_breed_by_id(fake.lexify(text="????"))
 
-        assert data.results[0].name == "Bengal"
-        assert data.results[0].id == "beng"
+    async def test_search_breeds_success(self, mock_breed_httpx_get, fake):
+        mock_data = self.generate_mock_breeds(fake, count=1)
+        self.setup_mock_response(mock_breed_httpx_get, mock_data)
+
+        pagination = PaginationParams(limit=10, page=0)
+        data = await BreedService.search_breeds(mock_data[0]["name"], pagination, DummyRequest())
+
+        assert data.results[0].id == mock_data[0]["id"]
+        assert data.results[0].name == mock_data[0]["name"]
+        assert data.previous is None
+        assert data.next is None
+
+    async def test_search_breeds_not_found(self, mock_breed_httpx_get, fake):
+        mock_data = self.generate_mock_breeds(fake, count=0)
+        self.setup_mock_response(mock_breed_httpx_get, mock_data)
+
+        pagination = PaginationParams(limit=5, page=0)
+        with pytest.raises(HTTPException) as error:
+            await BreedService.search_breeds("does-not-exist", pagination, DummyRequest())
+        assert error.value.status_code == status.HTTP_404_NOT_FOUND
+
+    async def test_search_breeds_pagination_links(self, mock_breed_httpx_get, fake):
+        mock_data = self.generate_mock_breeds(fake, count=3)
+        self.setup_mock_response(mock_breed_httpx_get, mock_data)
+
+        page_number_0= PaginationParams(limit=2, page=0)
+        response = await BreedService.search_breeds("query", page_number_0, DummyRequest())
+        assert response.previous is None
+        assert response.next.endswith("page=1")
+
+        page_number_1 = PaginationParams(limit=2, page=1)
+        response = await BreedService.search_breeds("query", page_number_1, DummyRequest())
+        assert response.previous is not None
+        assert response.next is None
