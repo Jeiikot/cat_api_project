@@ -1,0 +1,61 @@
+name: CI & Docker Publish
+
+on:
+  pull_request:
+    branches: [ main ]
+    types: [ closed ]
+jobs:
+  test-and-push:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    env:
+      IMAGE_NAME: jeiikot/cat_api_project
+
+    steps:
+      # 1) Checkout
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2) Set up Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # 3) Install dependencies
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov
+
+      # 4) Run tests
+      - name: Run tests with coverage
+        run: |
+          pytest --cov=app --cov-report=xml --cov-report=term-missing
+
+      # 5) Upload coverage
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+
+      # 6) Build Docker image
+      - name: Build Docker image
+        run: |
+          docker build -t $IMAGE_NAME:latest -t $IMAGE_NAME:${{ github.sha }} .
+
+      # 6) Login to Docker Hub
+      - name: Docker Hub login
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # 7) Push Docker image
+      - name: Push image
+        run: |
+          docker push $IMAGE_NAME:latest
+          docker push $IMAGE_NAME:${{ github.sha }}
