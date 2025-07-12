@@ -40,11 +40,15 @@ class BreedService:
         base_url = str(request.url).split("?")[0]
         query = f"limit={pagination.limit}&page={{}}"
 
+        start = pagination.page * pagination.limit
+        end = start + pagination.limit
+
+
         return PaginatedResponse[BreedModel](
             results=breeds,
             limit=pagination.limit,
             page=pagination.page,
-            next=f"{base_url}?{query.format(pagination.page + 1)}" if len(breeds) == pagination.limit else None,
+            next=f"{base_url}?{query.format(pagination.page + 1)}" if end < len(breeds) else None,
             previous=f"{base_url}?{query.format(pagination.page - 1)}" if pagination.page > 0 else None,
         )
 
