@@ -1,6 +1,12 @@
 # 🐱 Cat API Project
 
-Back-end service built with **FastAPI**, **MongoDB** (Motor async driver) and a clean, layered architecture. The project exposes two resource domains:
+[![CI](https://github.com/jeiikot/cat_api_project/actions/workflows/ci-docker.yml/badge.svg)](https://github.com/jeiikot/cat_api_project/actions/workflows/ci-docker.yml)
+[![Docker Hub](https://img.shields.io/docker/pulls/jeiikot/cat_api_project)](https://hub.docker.com/r/jeiikot/cat_api_project)
+
+
+Back-end service built with **FastAPI** and **MongoDB** (async Motor driver) following a clean, layered architecture.
+> **Tip** You can try every **/breeds** endpoint without a database because they proxy TheCatAPI directly. **/users** routes do need MongoDB running.
+
 
 * **Breeds** – read-only wrapper over [TheCatAPI](https://thecatapi.com)  
 * **Users**  – CRUD + login persisted in MongoDB
@@ -21,6 +27,17 @@ Back-end service built with **FastAPI**, **MongoDB** (Motor async driver) and a 
 
 ## 🚀 Quick start
 
+
+> **⏱️ Estimated time:** 1 min with the pre-built image, ~3 min if you build locally.
+
+| Option | When to use |
+|--------|-------------|
+| **A. `docker compose up`** | Local development and end-to-end tests |
+| **B. Pull the image from Docker Hub** | Quick evaluation without cloning or building |
+| **C. Local virtual-env** | Fine-tuning or debugging outside Docker |
+
+
+
 ### Option A — Docker Compose (recommended)
 
 ```bash
@@ -29,16 +46,23 @@ docker compose up --build
 
 Services started:
 
-* **cat-api** → <http://localhost:8000>  (docs at `/docs`)  
-* **mongo**   → port `27017`
+* **FastAPI** → <http://localhost:8000>  (docs at `/docs`)  
+* **MongoDB**   → port `27017`
 
-### Option B — Local virtual-env
+### Option B — Use the image published by CI
 
 ```bash
-python -m venv venv
-source venv/bin/activate       # Windows ➜ venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
+  docker pull jeiikot/cat_api_project:latest
+  docker compose up -d
+```
+
+### Option C — Virtual environment
+
+```bash
+    python -m venv venv
+    source venv/bin/activate       
+    pip install -r requirements.txt
+    uvicorn app.main:app --reload
 ```
 
 Create a `.env` file first (see template below).
@@ -51,12 +75,12 @@ Create **`.env`** (or use Docker-Compose defaults):
 
 ```env
 # Database
-MONGO_URL=mongodb://mongo:27017         # use mongodb://localhost:27017 if running Mongo locally
+MONGO_URL=mongodb://mongo:27017
 DB_NAME=cat_api
 
 # External API
-THECATAPI_URL=https://api.thecatapi.com/v1
-THECATAPI_KEY=replace-with-your-own-key
+CAT_API_URL=https://api.thecatapi.com/v1
+CAT_API_KEY=replace-with-your-own-key
 ```
 
 ---
@@ -116,11 +140,33 @@ cat_api_project/
 ```
 
 ---
+## 🛠️ CI / CD 
+
+A single GitHub Actions workflow—**ci-docker.yml**—runs automatically on every push to `main` and on merged pull-requests.
+
+| Step | What happens |
+|------|--------------|
+| 🧪 **Test** | Installs dependencies and runs all unit tests with coverage-gate (≥ 90 %). |
+| 🐳 **Build** | Builds the Docker image using the root `Dockerfile`. |
+| 🚀 **Publish** | Pushes the image to Docker Hub `jeiikot/cat_api_project` with two tags:<br>• **latest** – always the most recent build<br>• **{commit-SHA}** – immutable pin to that revision |
+
+```bash
+  docker pull jeiikot/cat_api_project:latest
+  docker compose up -d
+```
+
+Prefer to test a feature branch locally?
+
+```bash
+  docker compose build
+  docker compose up
+```
+---
 
 ## 🧪 Running tests
 
 ```bash
-pytest -q
+  pytest
 ```
 
 Unit tests cover user creation, unique-username generation, login flow, and one breed endpoint.
