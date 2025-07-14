@@ -20,7 +20,7 @@ class TestUserService:
         mock_collection.find_one = AsyncMock(return_value=user_data)
         mock_collection.insert_one = AsyncMock()
 
-    async def test_create_user_success(self, mock_user_httpx_get, fake):
+    async def test_create_user_success(self, fake):
         with patch("app.services.user.users_collection") as mock_users:
             mock_users.find_one = AsyncMock(return_value=None)
             mock_users.insert_one = AsyncMock()
