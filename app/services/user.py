@@ -1,5 +1,5 @@
 # FastAPI
-from fastapi import HTTPException, Request, status, FastAPI
+from fastapi import HTTPException, status
 
 # Models
 from app.models.common import PaginatedResponse
